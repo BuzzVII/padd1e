@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Padd1e</title>
+  <style>
+    canvas {
+      image-rendering: pixelated;
+      border: 1px solid #000;
+    }
+  </style>
+</head>
+<body style="background-color: #0a0a0a;">
+  <canvas id="gameCanvas" width="600" height="320"></canvas>
+  <script src="font.js"></script>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const pixelSize = 5;
+    const wrap = true; 
+    const width = canvas.width/pixelSize; 
+    const height = canvas.height/pixelSize;
+    var score = 0;
+    var hiScore = 0;
+    var scoreMulti = 1;
+    var keyPressStack = []
+
+    // Define colors using a matrix
+    const colors = [
+      [0, 0, 0, 0], // Transparent
+      [200, 200, 200, 255], // White
+      [200, 0, 0, 255], // Red
+      [0, 200, 0, 255], // Green
+      [0, 0, 200, 255], // Blue
+      [200, 200, 0, 255], // Yellow
+    ];
+
+// Main character sprites for walking animation
+    const mainCharacterSprites = [
+      [
+        [1, 1],
+        [1, 1],
+        [1, 1],
+        [1, 1],
+        [1, 1],
+        [1, 1],
+        [1, 1],
+      ],
+    ];
+
+    // Ball sprites
+    const ballSprites = [
+      [
+        [5, 5, 5],
+        [5, 5, 5],
+        [5, 5, 5],
+      ],
+    ];
+
+    const court = [
+      [
+        [3],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [0],
+        [3],
+      ],
+    ];
+
+    const centerCourt = [
+      [
+        [3],
+        [3],
+        [3],
+        [3],
+        [3],
+        [3],
+        [3],
+        [3],
+        [3],
+        [3],
+        [3],
+      ],
+    ];
+
+
+    let characterX = 4;
+    let characterY = height/2 - 2;
+    let characterSpeed = 0.05;
+    let ballX = 30;
+    let ballY = height/2;
+    let ballSpeed = 0.5;
+
+    
+    function gameInit() {
+      characterX = 4;
+      characterSpeed = 0.2;
+      ballX = 30;
+      ballSpeed = 0.5;
+      score = 0;
+    }
+
+
+    function startLoop() {
+      if (keyPressStack.length > 0) {
+        keyPressStack.pop();
+        gameInit();
+        requestAnimationFrame(gameLoop);
+      }
+      requestAnimationFrame(startLoop);
+    }
+    
+    function gameLoop() {
+      while (keyPressStack.length > 0) {
+        keyPressStack.pop();
+        characterSpeed *= -1;
+      }
+      clearCanvas();
+      // Move object
+      [characterX, characterSpeed] = moveCharacter(characterX, characterSpeed, mainCharacterSprites[0][0].length);
+      [ballX, ballSpeed] = moveCharacter(ballX, ballSpeed, ballSprites[0][0].length);
+      // Check collisions
+      [ballX, ballSpeed, characterX, characterSpeed] = checkCollision(ballX, ballSpeed, ballSprites[0][0].length, characterX, characterSpeed, mainCharacterSprites[0][0].length);
+      // Render objects
+      renderCharacter(characterX, characterY, mainCharacterSprites);
+      renderCharacter(ballX, ballY, ballSprites);
+      renderText(0, 0, `SCORE: ${score}`);
+      renderText(width-8*5, 0, `HI: ${hiScore}`);
+      if (Math.sign(characterSpeed) == Math.sign(ballSpeed)) {
+        renderText(0, 6, `x3`);
+        scoreMulti = 3;
+      }
+      else {
+        scoreMulti = 1;
+      }
+      if (checkGameOver(ballX, ballSprites[0][0].length) | score < -10) {
+        renderText(width/2 - 4.5*5, height/2 - 1, `GAME OVER`);
+        if (score > hiScore) {
+          hiScore = score;
+        }
+        requestAnimationFrame(startLoop());
+      }
+      requestAnimationFrame(gameLoop);
+    }
+
+    function handleKeyDown(event) {
+      keyPressStack.push(true);
+      score -= 1;
+    }
+
+    function checkGameOver(x, dx) {
+        if (x <= 0 | x + dx >= width) return true;
+        return false
+    }
+
+    function drawBackground() {
+      for (var i = 0; i < width; i++) renderCharacter(i, height/2-4, court);
+      renderCharacter(width/2, height/2-4, centerCourt);
+    }
+
+    function clearCanvas() {
+      ctx.fillStyle = '#12141a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawBackground();
+    }
+
+    function moveCharacter(x, dx, dw) {
+      x = x + dx;
+      if (x > width - dw & wrap) {
+        x = 0; // Reset to the left edge
+      } else if (x <= 0 & wrap) {
+        x = width - dw; // Reset to the right edge
+      } else if (x <= 0) {
+        x = 0;
+        dx *= -1;
+      } else if (x > width - dw) {
+        x = width - dw;
+        dx *= -1;
+      }
+      return [x, dx];
+    }
+
+    
+    function checkCollision(x1, dx1, dw1, x2, dx2, dw2) {
+      if (x1 + dw1 > x2 & x1 < x2 + dw2) {
+        if (dx1 > 0) x1 = x2 - dw1;
+        else if (dx1 < 0) x1 = x2 + dw1;
+        dx1 *= -1.1;
+        dx1 = Math.min(dx1, 2);
+        dx2 *= 1.1;
+        dx2 = Math.min(dx2, 1.5);
+        score += scoreMulti;
+      }
+      return [x1, dx1, x2, dx2]
+    }
+
+    function renderCharacter(x, y, sprites) {
+      const spriteIndex = Math.floor(Date.now() / 200) % sprites.length; // Change sprite every 200 milliseconds
+      drawCharacter(x, y, sprites[spriteIndex]);
+    }
+
+    function drawCharacter(x, y, character) {
+      for (let i = 0; i < character.length; i++) {
+        for (let j = 0; j < character[i].length; j++) {
+          const colorIndex = character[i][j];
+          const color = colors[colorIndex];
+
+          if (colorIndex !== 0) {
+            ctx.fillStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3] / 255})`;
+            ctx.fillRect((x + j) * pixelSize, (y + i) * pixelSize, pixelSize, pixelSize);
+          }
+        }
+      }
+    }
+
+    function renderText(x, y, text) {
+      let currentX = x;
+      for (let i = 0; i < text.length; i++) {
+        const character = font[text[i].toUpperCase()];
+        if (character) {
+          drawCharacter(currentX, y, character);
+          currentX += (character[0].length + 1);
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    clearCanvas();
+    renderText(width/2 - 7*5, height/2 - 1, `Press Any Key`);
+    startLoop();
+  </script>
+</body>
+</html>
+
